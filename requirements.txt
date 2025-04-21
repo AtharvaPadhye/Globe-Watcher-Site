@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+jinja2
+sqlalchemy
+httpx
+pytest
+pytest-asyncio
+mypy
+black
+flake8
+python-multipart
+pytz

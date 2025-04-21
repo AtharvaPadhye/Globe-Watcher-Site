@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Starshield Gateway Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/date-fns"></script>
+    <!-- 1. Luxon -->
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
+    <!-- 2. Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- 3. Chart.js Adapter for Luxon -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.4.0/dist/chartjs-adapter-luxon.umd.min.js"></script>
+</head>
+<body>
+    {% if success %}
+        <div class="flash-message">
+            ✅ Command Sent Successfully!
+        </div>
+    {% endif %}
+    <h1>Starshield Gateway Dashboard</h1>
+
+    <h2>Submit New Command</h2>
+    <form method="post" action="/submit_command_form">
+        <label for="satellite_id">Satellite ID:</label>
+        <select name="satellite_id" id="satellite_id" required>
+            {% for sat_id in sat_states.keys() %}
+                <option value="{{ sat_id }}">{{ sat_id }}</option>
+            {% endfor %}
+        </select>
+        <br>
+
+        <label for="command_type">Command Type:</label>
+        <input type="text" id="command_type" name="command_type" required>
+        <br>
+
+        <label for="parameters">Parameters (JSON format):</label>
+        <input type="text" id="parameters" name="parameters" value="{}" required>
+        <br>
+
+        <label for="priority">Priority (1=High, 5=Low):</label>
+        <input type="number" id="priority" name="priority" min="1" max="5" value="3" required>
+        <br>
+
+        <label for="expiry_time">Expiry Time (optional, ISO format):</label>
+        <input type="text" id="expiry_time" name="expiry_time">
+        <br><br>
+
+        <button type="submit">Send Command</button>
+    </form>
+    <hr>
+
+    <h2>Satellite Status</h2>
+    <ul>
+        {% for sat_id, online in sat_states.items() %}
+            <li>
+                <b>{{ sat_id }}</b> - 
+                {% if online %}
+                    <span class="online">🟢 Online</span>
+                {% else %}
+                    <span class="offline">🔴 Offline</span>
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+
+    <h2>Queued Commands</h2>
+    {% for sat_id, commands in queues.items() %}
+        <h3>{{ sat_id }}</h3>
+        {% if commands %}
+            <ul>
+                {% for cmd in commands %}
+                    <li>{{ cmd.command_type }} | Priority: {{ cmd.priority }} | Expires: {{ cmd.expiry_time if cmd.expiry_time else "No expiry" }}</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No queued commands.</p>
+        {% endif %}
+    {% endfor %}
+
+    <h2>Recent Telemetry Data</h2>
+    <ul>
+        {% for telemetry in telemetry_data %}
+            <li><b>{{ telemetry.satellite_id }}</b> @ {{ telemetry.timestamp }}: {{ telemetry.data }}</li>
+        {% endfor %}
+    </ul>
+
+    <h2>Telemetry Graph: Battery Voltage</h2>
+    <canvas id="telemetryChart" width="400" height="150"></canvas> <!-- Add canvas for graph -->
+
+    <script>
+        let formIsActive = false;
+
+        const form = document.querySelector('form');
+
+        if (form) {
+            form.addEventListener('focusin', () => {
+                console.log("User started interacting with form.");
+                formIsActive = true;
+            });
+            form.addEventListener('focusout', () => {
+                console.log("User stopped interacting with form (waiting to refresh).");
+                setTimeout(() => {
+                    formIsActive = false;
+                }, 3000); // 3 seconds after user leaves the form, allow refresh
+            });
+        }
+
+        // Auto-refresh the page ONLY when not typing
+        setInterval(() => {
+            if (!formIsActive) {
+                console.log("Auto-refreshing dashboard...");
+                location.reload();
+            }
+        }, 10000); // Refresh every 10 seconds
+
+        // Manually define the Luxon Date Adapter
+        Chart._adapters._date.override({
+            _id: 'luxon',
+            formats: function() {
+                return {};
+            },
+            parse: function(value) {
+                return luxon.DateTime.fromISO(value).toMillis();
+            },
+            format: function(time, fmt) {
+                const safeFormat = fmt || "HH:mm:ss";
+                return luxon.DateTime.fromMillis(time).toFormat(safeFormat);
+            },
+            add: function(time, amount, unit) {
+                return luxon.DateTime.fromMillis(time).plus({ [unit]: amount }).toMillis();
+            },
+            diff: function(max, min, unit) {
+                return luxon.DateTime.fromMillis(max).diff(luxon.DateTime.fromMillis(min)).as(unit);
+            },
+            startOf: function(time, unit) {
+                return luxon.DateTime.fromMillis(time).startOf(unit).toMillis();
+            },
+            endOf: function(time, unit) {
+                return luxon.DateTime.fromMillis(time).endOf(unit).toMillis();
+            }
+        });
+
+        const ctx = document.getElementById("telemetryChart").getContext("2d");
+
+        const chart = new Chart(ctx, {
+            type: "line",
+            data: {
+                datasets: [
+                    {
+                        label: "SAT-001",
+                        borderColor: "red",
+                        borderWidth: 2,
+                        pointRadius: 2,
+                        data: [],
+                        fill: false
+                    },
+                    {
+                        label: "SAT-002",
+                        borderColor: "green",
+                        borderWidth: 2,
+                        pointRadius: 2,
+                        data: [],
+                        fill: false
+                    },
+                    {
+                        label: "SAT-003",
+                        borderColor: "blue",
+                        borderWidth: 2,
+                        pointRadius: 2,
+                        data: [],
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                animation: false,
+                parsing: false,
+                scales: {
+                    x: {
+                        type: "time",
+                        time: {
+                            tooltipFormat: 'HH:mm:ss',
+                            displayFormats: {
+                                second: 'HH:mm:ss'
+                            }
+                        },
+                        adapters: {
+                            date: {
+                                zone: 'utc'  // Force UTC
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: "Time (UTC)"
+                        },
+                        ticks: {
+                            callback: function(value, index, values) {
+                                // Format tick labels in UTC
+                                return luxon.DateTime.fromMillis(value, { zone: 'utc' }).toFormat('HH:mm:ss');
+                            }
+                        }
+                    },
+                    y: {
+                        min: 10,
+                        max: 15,
+                        title: {
+                            display: true,
+                            text: "Battery Voltage (V)"
+                        }
+                    }
+                }
+            }
+        });
+
+        // Poll every 5 seconds for fresh data
+        async function fetchTelemetry() {
+            const res = await fetch("/api/telemetry/graph");
+            const data = await res.json();
+
+            const now = luxon.DateTime.utc();
+
+            chart.data.datasets.forEach((dataset) => {
+                const satId = dataset.label;
+                dataset.data = data[satId]
+                    .map((point) => ({
+                        x: luxon.DateTime.fromISO(point.timestamp, { zone: 'utc' }).toMillis(),
+                        y: point.battery_voltage
+                    }));
+            });
+
+            // Debugging: Log the processed telemetry data
+            console.log("Processed telemetry dataset:", chart.data.datasets);
+
+            // Update time window with milliseconds
+            chart.options.scales.x.min = luxon.DateTime.utc().minus({ minutes: 10 }).toMillis();
+            chart.options.scales.x.max = luxon.DateTime.utc().toMillis();
+
+            chart.update();
+        }
+
+        fetchTelemetry();
+        setInterval(fetchTelemetry, 5000);
+    </script>
+</body>
+</html>
