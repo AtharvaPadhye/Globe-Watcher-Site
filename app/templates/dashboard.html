@@ -88,6 +88,14 @@
     <h2>Telemetry Graph: Battery Voltage</h2>
     <canvas id="telemetryChart" width="400" height="150"></canvas> <!-- Add canvas for graph -->
 
+    <h2>Satellite Health</h2>
+    <ul id="health-status">
+        <!-- Health data will be dynamically populated here -->
+    </ul>
+
+    <h2>Satellite Health Predictions</h2>
+    <div id="healthcards"></div>
+
     <script>
         let formIsActive = false;
 
@@ -241,6 +249,81 @@
 
         fetchTelemetry();
         setInterval(fetchTelemetry, 5000);
+
+        async function fetchHealthStatus() {
+            const res = await fetch("/api/telemetry/health");
+            const healthData = await res.json();
+
+            const healthList = document.getElementById("health-status");
+            healthList.innerHTML = ""; // Clear existing data
+
+            for (const [satId, health] of Object.entries(healthData)) {
+                const li = document.createElement("li");
+                const voltage = health.battery_voltage.toFixed(2);
+                const projectedMinutes = health.projected_minutes_to_critical;
+
+                let statusText = `Satellite ${satId}: Voltage = ${voltage} V, `;
+                if (projectedMinutes === null) {
+                    statusText += "Stable (no critical risk)";
+                } else {
+                    const hours = Math.floor(projectedMinutes / 60);
+                    const minutes = Math.floor(projectedMinutes % 60);
+                    statusText += `Projected Time to Critical = ${hours}h ${minutes}m`;
+                }
+
+                li.textContent = statusText;
+                healthList.appendChild(li);
+            }
+        }
+
+        fetchHealthStatus();
+        setInterval(fetchHealthStatus, 10000); // Refresh every 10 seconds
+
+        async function fetchSatelliteHealth() {
+            const res = await fetch("/api/telemetry/health");
+            const health = await res.json();
+
+            const healthContainer = document.getElementById("healthcards");
+            if (!healthContainer) return;
+
+            healthContainer.innerHTML = ""; // Clear old cards
+
+            Object.entries(health).forEach(([sat_id, sat_health]) => {
+                const voltage = sat_health.battery_voltage;
+                const minutes = sat_health.projected_minutes_to_critical;
+
+                let projectedText = "";
+                if (minutes === null) {
+                    projectedText = "Stable (No risk)";
+                } else {
+                    const hrs = Math.floor(minutes / 60);
+                    const mins = Math.floor(minutes % 60);
+                    projectedText = `${hrs}h ${mins}m to critical`;
+                }
+
+                // Determine color
+                let color = "green";
+                if (minutes !== null && minutes < 60) {
+                    color = "red";
+                } else if (minutes !== null && minutes < 180) {
+                    color = "orange";
+                }
+
+                const card = `
+                    <div class="health-card" style="border: 2px solid ${color}; padding: 10px; margin-bottom: 10px;">
+                        <h3>${sat_id}</h3>
+                        <p><b>Battery Voltage:</b> ${voltage.toFixed(2)} V</p>
+                        <p><b>Status:</b> ${projectedText}</p>
+                    </div>
+                `;
+
+                healthContainer.innerHTML += card;
+            });
+        }
+
+        // Call it every 5 seconds
+        fetchSatelliteHealth();
+        setInterval(fetchSatelliteHealth, 5000);
     </script>
 </body>
 </html>

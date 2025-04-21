@@ -5,6 +5,8 @@ import pytz
 
 from app.services.queue_manager import pop_due_commands
 from app.services.telemetry_storage import telemetry_data
+from app.services.telemetry_manager import voltage_history
+from app.services.telemetry_manager import post_telemetry
 
 satellite_states = {
     "SAT-001": True,
@@ -42,18 +44,10 @@ async def simulate_telemetry():
                 voltage = round(random.uniform(12.5, 14.0), 2)
                 temperature = round(random.uniform(25.0, 35.0), 1)
 
-                telemetry_entry = {
-                    "satellite_id": sat_id,
-                    "data": {
-                        "battery_voltage": voltage,
-                        "temperature": temperature
-                    },
-                    "timestamp": timestamp
-                }
+                # Use post_telemetry to update telemetry_data and voltage_history
+                await post_telemetry(satellite_id=sat_id, battery_voltage=voltage, temperature=temperature, timestamp=datetime.utcnow())
 
-                telemetry_data.append(telemetry_entry)
-
-                print(f"[TELEMETRY] {sat_id} @ {timestamp}: {telemetry_entry['data']}")
+                print(f"[TELEMETRY] {sat_id} @ {timestamp}: Voltage={voltage}, Temperature={temperature}")
 
         await asyncio.sleep(5)
 
