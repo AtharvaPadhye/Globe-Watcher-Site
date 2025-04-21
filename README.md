@@ -1,4 +1,4 @@
-# FastAPI Application
+# Satellite Constellation Operation Dashboard (SCOD)
 
 This is a FastAPI application structured for modular development. Below are the details regarding the project setup, installation, and usage.
 
