@@ -72,24 +72,27 @@ async def get_telemetry_health():
 
     return health
 
-@router.get("/locations")
+@router.get("/locations")  # Ensure the correct path is used
 async def get_satellite_locations():
     locations = {}
     seen = set()
 
-    # Iterate in reverse order to get most recent first
+    # Iterate in reverse order to get the most recent telemetry data for each satellite
     for telemetry in reversed(telemetry_data):
         if isinstance(telemetry, dict):
             sat_id = telemetry.get("satellite_id")
             if sat_id and sat_id not in seen:
-                if telemetry.get("latitude") is not None and telemetry.get("longitude") is not None:
+                latitude = telemetry.get("latitude")
+                longitude = telemetry.get("longitude")
+                altitude = telemetry.get("altitude")
+                if latitude is not None and longitude is not None:
                     locations[sat_id] = {
-                        "latitude": telemetry["latitude"],
-                        "longitude": telemetry["longitude"],
-                        "altitude": telemetry["altitude"]
+                        "latitude": latitude,
+                        "longitude": longitude,
+                        "altitude": altitude
                     }
                     seen.add(sat_id)
-        if len(seen) == len(satellite_states):  # Already found all satellites
+        if len(seen) == len(satellite_states):  # Stop if all satellites are processed
             break
 
     return JSONResponse(content=locations)

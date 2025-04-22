@@ -3,18 +3,35 @@ from app.services.telemetry_storage import telemetry_data
 from datetime import datetime
 from app.services.queue_manager import move_commands
 
-async def post_telemetry(satellite_id: str, battery_voltage: float, temperature: float, traffic: dict, timestamp: datetime):
-    telemetry_data.append({
+async def post_telemetry(
+    satellite_id: str,
+    battery_voltage: float,
+    temperature: float,
+    timestamp: datetime,
+    traffic: int,
+    latitude: float,
+    longitude: float,
+    altitude: float
+):
+    telemetry_point = {
         "satellite_id": satellite_id,
         "timestamp": timestamp,
         "data": {
             "battery_voltage": battery_voltage,
             "temperature": temperature,
-            "traffic": traffic  # Use traffic data from payload
-        }
-    })
+            "traffic": traffic
+        },
+        "latitude": latitude,
+        "longitude": longitude,
+        "altitude": altitude
+    }
+    telemetry_data.append(telemetry_point)
+
     # Update voltage history
+    if satellite_id not in voltage_history:
+        voltage_history[satellite_id] = []
     voltage_history[satellite_id].append((timestamp, battery_voltage))
+
     # Trim to last 100 entries
     if len(voltage_history[satellite_id]) > 100:
         voltage_history[satellite_id].pop(0)

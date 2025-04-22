@@ -455,26 +455,34 @@
         };
 
         async function updateSatellites() {
-            const response = await fetch('/api/telemetry/locations');
-            const data = await response.json();
-
-            for (const [sat_id, coords] of Object.entries(data)) {
-                if (coords.latitude !== null && coords.longitude !== null) {
-                    // Update satellite position only if new coords are valid
-                    if (!satelliteMarkers[sat_id]) {
-                        satelliteMarkers[sat_id] = L.circleMarker([coords.latitude, coords.longitude], {
-                            color: satelliteColors[sat_id] || "black",
-                            radius: 8
-                        })
-                        .addTo(map)
-                        .bindPopup(`<b>${sat_id}</b>`);
-                    } else {
-                        satelliteMarkers[sat_id].setLatLng([coords.latitude, coords.longitude]);
-                    }
-                } else {
-                    console.warn(`[MAP] Keeping previous location for ${sat_id} (no new coordinates).`);
-                    // Do nothing — keep old location
+            try {
+                const response = await fetch('/api/telemetry/locations');
+                if (!response.ok) {
+                    console.error(`Failed to fetch satellite locations: ${response.statusText}`);
+                    return;
                 }
+
+                const data = await response.json();
+
+                for (const [sat_id, coords] of Object.entries(data)) {
+                    if (coords.latitude !== undefined && coords.longitude !== undefined) {
+                        // Update satellite position only if new coords are valid
+                        if (!satelliteMarkers[sat_id]) {
+                            satelliteMarkers[sat_id] = L.circleMarker([coords.latitude, coords.longitude], {
+                                color: satelliteColors[sat_id] || "black",
+                                radius: 8
+                            })
+                            .addTo(map)
+                            .bindPopup(`<b>${sat_id}</b>`);
+                        } else {
+                            satelliteMarkers[sat_id].setLatLng([coords.latitude, coords.longitude]);
+                        }
+                    } else {
+                        console.warn(`[MAP] Invalid coordinates for ${sat_id}: (${coords.latitude}, ${coords.longitude})`);
+                    }
+                }
+            } catch (error) {
+                console.error(`[ERROR] Failed to update satellites: ${error.message}`);
             }
         }
 

@@ -42,28 +42,32 @@ pacific = pytz.timezone('America/Los_Angeles')
 
 async def simulate_telemetry():
     while True:
-        now_pacific = datetime.now(pacific)
-        timestamp = now_pacific.isoformat()
-
-        for sat_id in satellite_states.keys():
+        for sat_id, position in satellite_positions.items():
             if satellite_states[sat_id]["online"]:
                 voltage = round(random.uniform(12.5, 14.0), 2)
                 temperature = round(random.uniform(25.0, 35.0), 1)
+                traffic = random.randint(10, 100)
 
                 # Special behavior for SAT-004
                 if sat_id == "SAT-004":
-                    voltage = max(10.0, voltage - random.uniform(0.1, 0.5))  # Gradually decrease voltage
-                    if random.random() < 0.4:  # 40% chance of outage
+                    voltage = max(10.0, voltage - random.uniform(0.1, 0.5))
+                    if random.random() < 0.4:
                         satellite_states[sat_id]["online"] = False
                         satellite_states[sat_id]["reason"] = "Temporary outage."
-                        print(f"[SPOTTY] {sat_id} went offline temporarily.")
                         continue
 
-                # Use post_telemetry to update telemetry_data and voltage_history
-                await post_telemetry(satellite_id=sat_id, battery_voltage=voltage, temperature=temperature, timestamp=datetime.utcnow())
+                await post_telemetry(
+                    satellite_id=sat_id,
+                    battery_voltage=voltage,
+                    temperature=temperature,
+                    timestamp=datetime.utcnow(),
+                    traffic=traffic,
+                    latitude=position["lat"],
+                    longitude=position["lon"],
+                    altitude=random.uniform(300, 600)
+                )
 
-                print(f"[TELEMETRY] {sat_id} @ {timestamp}: Voltage={voltage}, Temperature={temperature}")
-
+                print(f"[TELEMETRY] {sat_id}: Voltage={voltage}, Temp={temperature}, Lat={position['lat']}, Lon={position['lon']}")
         await asyncio.sleep(5)
 
 satellite_positions = {
