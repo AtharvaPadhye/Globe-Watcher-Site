@@ -2,8 +2,9 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from datetime import datetime
 from app.schemas.telemetry import Telemetry
-from app.services.satellite_simulator import telemetry_data
+from app.services.satellite_simulator import telemetry_data, satellite_positions  # Import satellite_positions
 from app.services.telemetry_manager import voltage_history
+from app.services.shared_state import satellite_states  # Import satellite_states
 
 router = APIRouter()
 
@@ -70,3 +71,25 @@ async def get_telemetry_health():
         }
 
     return health
+
+@router.get("/locations")
+async def get_satellite_locations():
+    locations = {}
+    seen = set()
+
+    # Iterate in reverse order to get most recent first
+    for telemetry in reversed(telemetry_data):
+        if isinstance(telemetry, dict):
+            sat_id = telemetry.get("satellite_id")
+            if sat_id and sat_id not in seen:
+                if telemetry.get("latitude") is not None and telemetry.get("longitude") is not None:
+                    locations[sat_id] = {
+                        "latitude": telemetry["latitude"],
+                        "longitude": telemetry["longitude"],
+                        "altitude": telemetry["altitude"]
+                    }
+                    seen.add(sat_id)
+        if len(seen) == len(satellite_states):  # Already found all satellites
+            break
+
+    return JSONResponse(content=locations)

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Starshield Gateway Dashboard</title>
+    <title>Satellite Constellation Operations Management Gateway Dashboard</title>
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/date-fns"></script>
     <!-- 1. Luxon -->
@@ -11,6 +11,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <!-- 3. Chart.js Adapter for Luxon -->
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.4.0/dist/chartjs-adapter-luxon.umd.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"/>
 </head>
 <body>
     {% if success %}
@@ -18,7 +20,7 @@
             ✅ Command Sent Successfully!
         </div>
     {% endif %}
-    <h1>Starshield Gateway Dashboard</h1>
+    <h1>Satellite Constellation Operations Management Gateway Dashboard</h1>
 
     <h2>Submit New Command</h2>
     <form method="post" action="/submit_command_form">
@@ -52,15 +54,16 @@
 
     <h2>Satellite Status</h2>
     <ul>
-        {% for sat_id, online in sat_states.items() %}
-            <li>
-                <b>{{ sat_id }}</b> - 
-                {% if online %}
-                    <span class="online">🟢 Online</span>
-                {% else %}
-                    <span class="offline">🔴 Offline</span>
-                {% endif %}
-            </li>
+        {% for sat_id, state in sat_states.items() %}
+        <li>
+            <b>{{ sat_id }}</b> - 
+            {% if state.online %}
+                <span class="online">🟢 Online</span>
+            {% else %}
+                <span class="offline">🔴 Offline</span>
+                <br><b>Reason:</b> {{ state.reason }}
+            {% endif %}
+        </li>
         {% endfor %}
     </ul>
 
@@ -85,16 +88,58 @@
         {% endfor %}
     </ul>
 
+    <div class="traffic-moves">
+        <h3>Traffic Reassignments</h3>
+        {% if traffic_moves %}
+        <ul>
+            {% for move in traffic_moves %}
+            <li>
+                Moved from {{ move.from }} ➡️ {{ move.to }} at {{ move.timestamp.strftime("%H:%M:%S") }}
+                <br><b>Reason:</b> {{ move.reason }}
+                <br><b>Details:</b> {{ move.verbage }}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p>No traffic reassignments yet.</p>
+        {% endif %}
+    </div>
+
     <h2>Telemetry Graph: Battery Voltage</h2>
     <canvas id="telemetryChart" width="400" height="150"></canvas> <!-- Add canvas for graph -->
 
     <h2>Satellite Health</h2>
     <ul id="health-status">
-        <!-- Health data will be dynamically populated here -->
+        {% for sat_id, health in health_data.items() %}
+        <li>
+            <b>{{ sat_id }}</b>: Voltage = {{ health.battery_voltage or "N/A" }} V, 
+            {% if health.projected_minutes_to_critical is not none %}
+                Projected Time to Critical = {{ (health.projected_minutes_to_critical // 60)|int }}h {{ (health.projected_minutes_to_critical % 60)|int }}m
+            {% else %}
+                Stable (No critical risk)
+            {% endif %}
+        </li>
+        {% endfor %}
     </ul>
 
     <h2>Satellite Health Predictions</h2>
-    <div id="healthcards"></div>
+    <div id="healthcards">
+        {% for sat_id, health in health_data.items() %}
+        <div class="health-card" style="border: 2px solid {% if health.projected_minutes_to_critical is not none and health.projected_minutes_to_critical < 60 %}red{% elif health.projected_minutes_to_critical is not none and health.projected_minutes_to_critical < 180 %}orange{% else %}green{% endif %}; padding: 10px; margin-bottom: 10px;">
+            <h3>{{ sat_id }}</h3>
+            <p><b>Battery Voltage:</b> {{ health.battery_voltage or "N/A" }} V</p>
+            <p><b>Status:</b> 
+                {% if health.projected_minutes_to_critical is not none %}
+                    {{ (health.projected_minutes_to_critical // 60)|int }}h {{ (health.projected_minutes_to_critical % 60)|int }}m to critical
+                {% else %}
+                    Stable (No risk)
+                {% endif %}
+            </p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div id="map" style="height: 500px;"></div>
 
     <script>
         let formIsActive = false;
@@ -178,6 +223,26 @@
                         pointRadius: 2,
                         data: [],
                         fill: false
+                    },
+                    {
+                        label: "SAT-004",  // Add SAT-004
+                        borderColor: "purple",
+                        borderWidth: 2,
+                        pointRadius: 2,
+                        data: [],
+                        fill: false
+                    },
+                    {
+                        label: "Critical Voltage (12.2V)", // Add red line for critical voltage
+                        borderColor: "red",
+                        borderWidth: 1,
+                        borderDash: [5, 5], // Dashed line
+                        pointRadius: 0,
+                        data: [
+                            { x: luxon.DateTime.utc().minus({ minutes: 10 }).toMillis(), y: 12.2 },
+                            { x: luxon.DateTime.utc().toMillis(), y: 12.2 }
+                        ],
+                        fill: false
                     }
                 ]
             },
@@ -217,6 +282,24 @@
                             text: "Battery Voltage (V)"
                         }
                     }
+                },
+                plugins: {
+                    annotation: {
+                        annotations: {
+                            criticalVoltage: {
+                                type: 'line',
+                                yMin: 12.2,
+                                yMax: 12.2,
+                                borderColor: 'red',
+                                borderWidth: 2,
+                                label: {
+                                    content: 'Critical Voltage',
+                                    enabled: true,
+                                    position: 'end'
+                                }
+                            }
+                        }
+                    }
                 }
             }
         });
@@ -230,11 +313,35 @@
 
             chart.data.datasets.forEach((dataset) => {
                 const satId = dataset.label;
-                dataset.data = data[satId]
-                    .map((point) => ({
-                        x: luxon.DateTime.fromISO(point.timestamp, { zone: 'utc' }).toMillis(),
-                        y: point.battery_voltage
-                    }));
+                if (satId.startsWith("SAT-")) {
+                    dataset.data = data[satId]
+                        .map((point) => ({
+                            x: luxon.DateTime.fromISO(point.timestamp, { zone: 'utc' }).toMillis(),
+                            y: point.battery_voltage
+                        }));
+
+                    // Trigger traffic reassignment if voltage drops below 12.2
+                    if (dataset.data.some(point => point.y < 12.2)) {
+                        console.log(`[TRAFFIC] Reassigning traffic for ${satId} due to low voltage.`);
+                        reassignTraffic(satId); // Call helper function
+                    }
+
+                    // Check for temperature spikes
+                    const temperatureData = data[satId]
+                        .map(point => point.temperature ?? null) // Safely access temperature
+                        .filter(temp => temp !== null); // Ignore missing temperatures
+
+                    if (temperatureData.length > 2) {
+                        const recentTemps = temperatureData.slice(-3); // Last 3 temperature points
+                        const avgTemp = recentTemps.reduce((a, b) => a + b, 0) / recentTemps.length;
+                        const maxTemp = Math.max(...recentTemps);
+
+                        if (maxTemp > avgTemp + 5) { // Spike threshold: 5 degrees above average
+                            console.log(`[HEAT SPIKE] Redirecting traffic for ${satId} due to heat spike.`);
+                            reassignTraffic(satId); // Call helper function
+                        }
+                    }
+                }
             });
 
             // Debugging: Log the processed telemetry data
@@ -245,6 +352,14 @@
             chart.options.scales.x.max = luxon.DateTime.utc().toMillis();
 
             chart.update();
+        }
+
+        async function reassignTraffic(satelliteId) {
+            try {
+                await fetch(`/api/commands/reassign?satellite_id=${satelliteId}`, { method: "POST" });
+            } catch (error) {
+                console.error(`[ERROR] Failed to reassign traffic for ${satelliteId}:`, error);
+            }
         }
 
         fetchTelemetry();
@@ -324,6 +439,48 @@
         // Call it every 5 seconds
         fetchSatelliteHealth();
         setInterval(fetchSatelliteHealth, 5000);
+
+        var map = L.map('map').setView([0, 0], 2);  // Center at 0,0
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        let satelliteMarkers = {};
+
+        const satelliteColors = {
+            "SAT-001": "red",
+            "SAT-002": "green",
+            "SAT-003": "blue",
+            "SAT-004": "purple"
+        };
+
+        async function updateSatellites() {
+            const response = await fetch('/api/telemetry/locations');
+            const data = await response.json();
+
+            for (const [sat_id, coords] of Object.entries(data)) {
+                if (coords.latitude !== null && coords.longitude !== null) {
+                    // Update satellite position only if new coords are valid
+                    if (!satelliteMarkers[sat_id]) {
+                        satelliteMarkers[sat_id] = L.circleMarker([coords.latitude, coords.longitude], {
+                            color: satelliteColors[sat_id] || "black",
+                            radius: 8
+                        })
+                        .addTo(map)
+                        .bindPopup(`<b>${sat_id}</b>`);
+                    } else {
+                        satelliteMarkers[sat_id].setLatLng([coords.latitude, coords.longitude]);
+                    }
+                } else {
+                    console.warn(`[MAP] Keeping previous location for ${sat_id} (no new coordinates).`);
+                    // Do nothing — keep old location
+                }
+            }
+        }
+
+        // Update every 5 seconds
+        setInterval(updateSatellites, 5000);
+        updateSatellites();  // Initial load
     </script>
 </body>
 </html>
