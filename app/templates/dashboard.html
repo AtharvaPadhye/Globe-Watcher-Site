@@ -113,10 +113,10 @@
         {% for sat_id, health in health_data.items() %}
         <li>
             <b>{{ sat_id }}</b>: Voltage = {{ health.battery_voltage or "N/A" }} V, 
-            {% if health.projected_minutes_to_critical is not none %}
+            {% if health.projected_minutes_to_critical is defined and health.projected_minutes_to_critical is not none %}
                 Projected Time to Critical = {{ (health.projected_minutes_to_critical // 60)|int }}h {{ (health.projected_minutes_to_critical % 60)|int }}m
             {% else %}
-                Stable (No critical risk)
+                Projected Time to Critical = Unknown
             {% endif %}
         </li>
         {% endfor %}
