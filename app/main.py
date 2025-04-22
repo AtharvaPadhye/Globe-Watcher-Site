@@ -215,6 +215,19 @@ async def read_root(request: Request):
         {
             "request": request,
             "sat_states": satellite_states,  # Pass satellite_states
-            "queues": queues  # Pass queues
-        }
+            "queues": queues,  # Pass queues
+            "health_data": satellite_states,
+            "telemetry_data": telemetry_data[-10:],  # Include last 10 telemetry points
+            "telemetry_plot_data": [],  # Placeholder for telemetry plot data
+            "success": 0,  # Default success value
+            "traffic_moves": traffic_move_log,  # Pass move history with reasons
+            "voltage_history": voltage_history,  # Pass voltage history for health checks
+            "series": {
+                "SAT-001": [],
+                "SAT-002": [],
+                "SAT-003": [],
+                "SAT-004": []  # Predefined satellites
+            },
+
+        }   
     )
