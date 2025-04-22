@@ -201,3 +201,7 @@ def get_telemetry_graph_data():
             })
 
     return JSONResponse(series)
+
+@app.get("/")
+def read_root():
+    return {"message": "Service is running!"}
