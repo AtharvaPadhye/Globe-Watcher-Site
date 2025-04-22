@@ -1,7 +1,8 @@
 from fastapi import FastAPI, Request, Form, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse, FileResponse
+import os
 from app.api.endpoints import commands, telemetry
 from app.services.queue_manager import get_all_queues, move_commands
 from app.services.satellite_simulator import satellite_states, telemetry_data, simulate_telemetry, simulate_satellite_connections
@@ -202,6 +203,6 @@ def get_telemetry_graph_data():
 
     return JSONResponse(series)
 
-@app.get("/")
-def read_root():
-    return {"message": "Service is running!"}
+@app.get("/", response_class=HTMLResponse)
+async def read_root(request: Request):
+    return templates.TemplateResponse("dashboard.html", {"request": request})
