@@ -8,14 +8,18 @@ from app.services.queue_manager import get_all_queues, move_commands
 from app.services.satellite_simulator import satellite_states, telemetry_data, simulate_telemetry, simulate_satellite_connections
 from app.services.telemetry_manager import voltage_history
 from app.schemas.command import Command
+from app.services.queue_manager import queues
+
 import json
 from datetime import datetime, timedelta
 import asyncio
 
 app = FastAPI()
 
-# Mount static files and templates
+# Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+# Set templates directory
 templates = Jinja2Templates(directory="app/templates")
 
 # Include API routers
@@ -205,10 +209,12 @@ def get_telemetry_graph_data():
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
+    queues = get_all_queues()  # Fetch queues dynamically
     return templates.TemplateResponse(
         "dashboard.html",
         {
             "request": request,
-            "sat_states": satellite_states  # Pass satellite_states to the template
+            "sat_states": satellite_states,  # Pass satellite_states
+            "queues": queues  # Pass queues
         }
     )
