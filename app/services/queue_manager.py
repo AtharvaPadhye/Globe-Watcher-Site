@@ -19,6 +19,10 @@ class QueueManager:
 # Queues per satellite
 command_queues = defaultdict(list)
 
+# Initialize queues for predefined satellites
+satellite_ids = ["SAT-001", "SAT-002", "SAT-003", "SAT-004"]
+queues = {sat_id: [] for sat_id in satellite_ids}
+
 def queue_command(satellite_id: str, command):
     command_queues[satellite_id].append(command)
     prioritize_queue(satellite_id)
