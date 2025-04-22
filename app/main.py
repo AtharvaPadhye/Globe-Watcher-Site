@@ -205,4 +205,10 @@ def get_telemetry_graph_data():
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {
+            "request": request,
+            "sat_states": satellite_states  # Pass satellite_states to the template
+        }
+    )
