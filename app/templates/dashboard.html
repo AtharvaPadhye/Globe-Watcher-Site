@@ -84,7 +84,11 @@
     <h2>Recent Telemetry Data</h2>
     <ul>
         {% for telemetry in telemetry_data %}
-            <li><b>{{ telemetry.satellite_id }}</b> @ {{ telemetry.timestamp }}: {{ telemetry.data }}</li>
+        <li>
+            <b>{{ telemetry.satellite_id if telemetry.satellite_id is defined else "Unknown" }}</b> 
+            @ {{ telemetry.timestamp if telemetry.timestamp is defined else "Unknown time" }}: 
+            {{ telemetry.data if telemetry.data is defined else "{}" }}
+        </li>
         {% endfor %}
     </ul>
 
@@ -94,9 +98,10 @@
         <ul>
             {% for move in traffic_moves %}
             <li>
-                Moved from {{ move.from }} ➡️ {{ move.to }} at {{ move.timestamp.strftime("%H:%M:%S") }}
-                <br><b>Reason:</b> {{ move.reason }}
-                <br><b>Details:</b> {{ move.verbage }}
+                Moved from {{ move.from if move.from is defined else "Unknown" }} ➡️ {{ move.to if move.to is defined else "Unknown" }} 
+                at {{ move.timestamp.strftime("%H:%M:%S") if move.timestamp is defined else "Unknown time" }}
+                <br><b>Reason:</b> {{ move.reason if move.reason is defined else "No reason provided" }}
+                <br><b>Details:</b> {{ move.verbage if move.verbage is defined else "No details available" }}
             </li>
             {% endfor %}
         </ul>
@@ -125,11 +130,21 @@
     <h2>Satellite Health Predictions</h2>
     <div id="healthcards">
         {% for sat_id, health in health_data.items() %}
-        <div class="health-card" style="border: 2px solid {% if health.projected_minutes_to_critical is not none and health.projected_minutes_to_critical < 60 %}red{% elif health.projected_minutes_to_critical is not none and health.projected_minutes_to_critical < 180 %}orange{% else %}green{% endif %}; padding: 10px; margin-bottom: 10px;">
+{% set border_color = "gray" %}
+{% if health.projected_minutes_to_critical is defined and health.projected_minutes_to_critical is not none %}
+    {% if health.projected_minutes_to_critical < 60 %}
+        {% set border_color = "red" %}
+    {% elif health.projected_minutes_to_critical < 180 %}
+        {% set border_color = "orange" %}
+    {% else %}
+        {% set border_color = "green" %}
+    {% endif %}
+{% endif %}
+<div class="health-card" style="border: 2px solid {{ border_color }}; padding: 10px; margin-bottom: 10px;">
             <h3>{{ sat_id }}</h3>
             <p><b>Battery Voltage:</b> {{ health.battery_voltage or "N/A" }} V</p>
             <p><b>Status:</b> 
-                {% if health.projected_minutes_to_critical is not none %}
+                {% if health.projected_minutes_to_critical is defined and health.projected_minutes_to_critical is not none %}
                     {{ (health.projected_minutes_to_critical // 60)|int }}h {{ (health.projected_minutes_to_critical % 60)|int }}m to critical
                 {% else %}
                     Stable (No risk)
